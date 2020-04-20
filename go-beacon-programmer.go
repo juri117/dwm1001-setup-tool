@@ -19,6 +19,7 @@ type BeaconProgrammer struct {
 	NetworkIDHexLab   *ui.Label
 	NetworkIDHexChk   *ui.Checkbox
 	ModeRb            *ui.RadioButtons
+	BleChk            *ui.Checkbox
 	PosXEntry         *ui.Entry
 	PosYEntry         *ui.Entry
 	PosZEntry         *ui.Entry
@@ -34,13 +35,12 @@ func makeBasicControlsPage() ui.Control {
 	vbox := ui.NewVerticalBox()
 	vbox.SetPadded(true)
 
-	// groupCom := ui.NewGroup("Com-Port")
-	// groupCom.SetMargined(true)
-
 	comPortGrid := ui.NewGrid()
 	comPortGrid.SetPadded(true)
 	vbox.Append(comPortGrid, false)
 
+	//***************************************
+	// connection
 	comForm := ui.NewForm()
 	comForm.SetPadded(true)
 	comPortGrid.Append(ui.NewLabel("com-port"),
@@ -74,6 +74,8 @@ func makeBasicControlsPage() ui.Control {
 	vbox.Append(ui.NewLabel("set up beacon..."), false)
 	vbox.Append(ui.NewHorizontalSeparator(), false)
 
+	//***************************************
+	// meta
 	groupMeta := ui.NewGroup("Meta")
 	groupMeta.SetMargined(true)
 	vbox.Append(groupMeta, true)
@@ -105,6 +107,11 @@ func makeBasicControlsPage() ui.Control {
 	bp.ModeRb.Append("initiator")
 	metaForm.Append("mode", bp.ModeRb, false)
 
+	bp.BleChk = ui.NewCheckbox("")
+	metaForm.Append("enable BLE", bp.BleChk, false)
+
+	//***************************************
+	// position
 	groupPos := ui.NewGroup("Position")
 	groupPos.SetMargined(true)
 	vbox.Append(groupPos, true)
@@ -173,6 +180,7 @@ func refreshView() {
 		selectedIndex = 1
 	}
 	bp.ModeRb.SetSelected(selectedIndex)
+	bp.BleChk.SetChecked(ur.Data.BleEnabled)
 	bp.PosXEntry.SetText(strconv.FormatFloat(ur.Data.X, 'f', 3, 64))
 	bp.PosYEntry.SetText(strconv.FormatFloat(ur.Data.Y, 'f', 3, 64))
 	bp.PosZEntry.SetText(strconv.FormatFloat(ur.Data.Z, 'f', 3, 64))
@@ -223,7 +231,7 @@ func saveButtonCallback(but *ui.Button) {
 	if bp.ModeRb.Selected() == 1 {
 		init = true
 	}
-	ur.SetMode(init)
+	ur.SetMode(init, bp.BleChk.Checked())
 	refreshView()
 }
 

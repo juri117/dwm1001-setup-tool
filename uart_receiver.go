@@ -16,12 +16,13 @@ import (
 
 // BeaconInfo data of current connected beacon
 type BeaconInfo struct {
-	Address   string
-	Initiator bool
-	NetworkID int
-	X         float64
-	Y         float64
-	Z         float64
+	Address    string
+	Initiator  bool
+	BleEnabled bool
+	NetworkID  int
+	X          float64
+	Y          float64
+	Z          float64
 }
 
 // UartReceiver runs concurrent
@@ -65,6 +66,7 @@ func (ur *UartReceiver) ClosePort() {
 	ur.serialP = nil
 	ur.Data.Address = "?"
 	ur.Data.Initiator = false
+	ur.Data.BleEnabled = false
 	ur.Data.NetworkID = 0
 	ur.Data.X = 0.
 	ur.Data.Y = 0.
@@ -99,6 +101,7 @@ func (ur *UartReceiver) receiverTask() {
 			return
 		}
 		ur.inMsg += string(buf[:n])
+		// log.Print(string(buf[:n]))
 	}
 }
 
@@ -122,6 +125,7 @@ func (ur *UartReceiver) RequestAll() bool {
 // RequestSysInfo request and receive system info (network id)
 func (ur *UartReceiver) RequestSysInfo() bool {
 	if ur.SendStrAndWait("si\r") {
+		log.Print(ur.inMsg)
 		if strings.Contains(ur.inMsg, "addr=x") {
 			startI := strings.Index(ur.inMsg, "addr=x") + 7
 			add := ur.inMsg[startI : startI+16]
@@ -135,7 +139,6 @@ func (ur *UartReceiver) RequestSysInfo() bool {
 				log.Fatal(err)
 			}
 			ur.Data.NetworkID = int(netID)
-			return true
 		}
 		if strings.Contains(ur.inMsg, "mode:") {
 			if strings.Contains(ur.inMsg, "ani ") {
@@ -145,6 +148,15 @@ func (ur *UartReceiver) RequestSysInfo() bool {
 				ur.Data.Initiator = false
 			}
 		}
+		if strings.Contains(ur.inMsg, "cfg:") {
+			if strings.Contains(ur.inMsg, "ble=1") {
+				ur.Data.BleEnabled = true
+			}
+			if strings.Contains(ur.inMsg, "ble=0") {
+				ur.Data.BleEnabled = false
+			}
+		}
+		return true
 	}
 	return false
 }
@@ -155,7 +167,7 @@ func (ur *UartReceiver) RequestPos() bool {
 		if strings.Contains(ur.inMsg, "apg:") {
 			startI := strings.Index(ur.inMsg, "x:")
 			parts := strings.Split(ur.inMsg[startI:], " ")
-			if len(parts) == 4 {
+			if len(parts) >= 4 {
 				x, e0 := strconv.ParseFloat(strings.ReplaceAll(parts[0], "x:", ""), 32)
 				y, e1 := strconv.ParseFloat(strings.ReplaceAll(parts[1], "y:", ""), 32)
 				z, e2 := strconv.ParseFloat(strings.ReplaceAll(parts[2], "z:", ""), 32)
@@ -185,9 +197,14 @@ func (ur *UartReceiver) EnterShellMode() {
 //SetNetworkID sets beacons network id
 func (ur *UartReceiver) SetNetworkID(newID int) bool {
 	sendStr := fmt.Sprintf("nis %d\r", newID)
-	ur.SendStrAndWaitForStr(sendStr, "nis: ok")
+	if !ur.SendStrAndWaitForStr(sendStr, "nis: ok") {
+		log.Print("failed to set networkID")
+		return false
+	}
 	ur.Data.NetworkID = newID
-	ur.WaitForShellReadyNoReset()
+	if !ur.WaitForShellReadyNoReset() {
+		log.Print("failed to wait for shell complete")
+	}
 	return true
 }
 
@@ -210,16 +227,21 @@ func (ur *UartReceiver) SetPosition(x string, y string, z string) bool {
 	}
 
 	sendStr := fmt.Sprintf("aps %d %d %d\r", int(xFl*1000), int(yFl*1000), int(zFl*1000))
-	ur.SendStrAndWaitForStr(sendStr, "aps: ok")
+	if !ur.SendStrAndWaitForStr(sendStr, "aps: ok") {
+		log.Print("failed to set position")
+		return false
+	}
 	ur.Data.X = xFl
 	ur.Data.Y = yFl
 	ur.Data.Z = zFl
-	ur.WaitForShellReadyNoReset()
+	if !ur.WaitForShellReadyNoReset() {
+		log.Print("failed to wait for shell to complete")
+	}
 	return true
 }
 
 //SetMode sets beacon operating mode, and reboots to make it effictive
-func (ur *UartReceiver) SetMode(initiator bool) bool {
+func (ur *UartReceiver) SetMode(initiator bool, enableBle bool) bool {
 	inr := 0
 	if initiator {
 		inr = 1
@@ -228,13 +250,22 @@ func (ur *UartReceiver) SetMode(initiator bool) bool {
 	enc := 0
 	leds := 1
 	ble := 0
+	if enableBle {
+		ble = 1
+	}
 	uwb := 2
 	fwUpd := 0
 	sendStr := fmt.Sprintf("acas %d %d %d %d %d %d %d\r",
 		inr, bridge, enc, leds, ble, uwb, fwUpd)
-	ur.SendStrAndWaitForStr(sendStr, "acas: ok")
-	ur.WaitForShellReadyNoReset()
+	if !ur.SendStrAndWaitForStr(sendStr, "acas: ok") {
+		log.Print("failed to set mode")
+		return false
+	}
+	if !ur.WaitForShellReadyNoReset() {
+		log.Print("failed to wait for shell complete")
+	}
 	ur.SendStr("reset\r")
+	ur.IsSetUp = false
 	// device will reboot
 	time.Sleep(700 * time.Millisecond)
 	ur.RequestAll()
@@ -256,9 +287,8 @@ func (ur *UartReceiver) SendStrAndWaitForStr(sentMsg string, waitStr string) boo
 		log.Print("no uart connection, abort send.")
 		return false
 	}
-	_, err := ur.serialP.Write([]byte(sentMsg))
-	if err != nil {
-		log.Fatal(err)
+	if !ur.SendStr(sentMsg) {
+		log.Print("failed to send msg to uart")
 		return false
 	}
 	startS := time.Now()
