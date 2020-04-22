@@ -13,6 +13,7 @@ import (
 type BeaconProgrammer struct {
 	ComPortSelectCont *ui.Box
 	ComPortCombo      *ui.Combobox
+	RefreshPortsBut   *ui.Button
 	ConnectBut        *ui.Button
 	DeviceAddLab      *ui.Label
 	NetworkIDEntry    *ui.Entry
@@ -25,6 +26,9 @@ type BeaconProgrammer struct {
 	PosZEntry         *ui.Entry
 	StatProgBar       *ui.ProgressBar
 	PortList          []string
+	StatusLab         *ui.Label
+	ResetBut          *ui.Button
+	SaveBut           *ui.Button
 }
 
 var mainwin *ui.Window
@@ -56,10 +60,10 @@ func makeBasicControlsPage() ui.Control {
 		false, ui.AlignFill, false, ui.AlignFill)
 
 	//comPortGrid.Append(cbox, false)
-	refreshPortsBut := ui.NewButton("refresh")
-	refreshPortsBut.OnClicked(refreshComPortsCallback)
+	bp.RefreshPortsBut = ui.NewButton("refresh")
+	bp.RefreshPortsBut.OnClicked(refreshComPortsCallback)
 	// refreshPortsBut.OnClicked(resetButton)
-	comPortGrid.Append(refreshPortsBut,
+	comPortGrid.Append(bp.RefreshPortsBut,
 		2, 0, 1, 1,
 		false, ui.AlignFill, false, ui.AlignFill)
 	bp.ConnectBut = ui.NewButton("connect")
@@ -132,20 +136,59 @@ func makeBasicControlsPage() ui.Control {
 	hbox := ui.NewHorizontalBox()
 	hbox.SetPadded(true)
 	vbox.Append(hbox, false)
-	resetBut := ui.NewButton("reset")
-	resetBut.OnClicked(resetButtonCallback)
-	hbox.Append(resetBut, false)
-	saveBut := ui.NewButton("save")
-	saveBut.OnClicked(saveButtonCallback)
-	hbox.Append(saveBut, false)
+	bp.ResetBut = ui.NewButton("download")
+	bp.ResetBut.OnClicked(resetButtonCallback)
+	hbox.Append(bp.ResetBut, false)
+	bp.SaveBut = ui.NewButton("save")
+	bp.SaveBut.OnClicked(saveButtonCallback)
+	hbox.Append(bp.SaveBut, false)
 
 	bp.StatProgBar = ui.NewProgressBar()
 	bp.StatProgBar.SetValue(0)
 	vbox.Append(bp.StatProgBar, false)
-	statuslab := ui.NewLabel("waiting for uart connection...")
-	vbox.Append(statuslab, false)
 
+	bp.StatusLab = ui.NewLabel("disconnected!")
+	vbox.Append(bp.StatusLab, false)
+	enableAll(false)
 	return vbox
+}
+
+func startOperation(msg string) {
+	enableAll(false)
+	bp.StatusLab.SetText(msg)
+	bp.StatProgBar.SetValue(-1)
+}
+
+func doneOperation(msg string) {
+	bp.StatusLab.SetText(msg)
+	bp.StatProgBar.SetValue(0)
+	if ur.Connected() {
+		enableAll(true)
+	}
+}
+
+func enableAll(enable bool) {
+	if enable {
+		bp.NetworkIDEntry.Enable()
+		bp.NetworkIDHexChk.Enable()
+		bp.ModeRb.Enable()
+		bp.BleChk.Enable()
+		bp.PosXEntry.Enable()
+		bp.PosYEntry.Enable()
+		bp.PosZEntry.Enable()
+		bp.ResetBut.Enable()
+		bp.SaveBut.Enable()
+	} else {
+		bp.NetworkIDEntry.Disable()
+		bp.NetworkIDHexChk.Disable()
+		bp.ModeRb.Disable()
+		bp.BleChk.Disable()
+		bp.PosXEntry.Disable()
+		bp.PosYEntry.Disable()
+		bp.PosZEntry.Disable()
+		bp.ResetBut.Disable()
+		bp.SaveBut.Disable()
+	}
 }
 
 func refreshComPorts() {
@@ -164,8 +207,12 @@ func refreshComPorts() {
 func refreshView() {
 	if ur.Connected() {
 		bp.ConnectBut.SetText("Disconnect")
+		bp.ComPortCombo.Disable()
+		bp.RefreshPortsBut.Disable()
 	} else {
 		bp.ConnectBut.SetText("Connect")
+		bp.ComPortCombo.Enable()
+		bp.RefreshPortsBut.Enable()
 	}
 	bp.DeviceAddLab.SetText(ur.Data.Address)
 	if bp.NetworkIDHexChk.Checked() {
@@ -190,28 +237,48 @@ func refreshComPortsCallback(but *ui.Button) {
 	refreshComPorts()
 }
 
+func connect() {
+	ur.SetPort(bp.PortList[bp.ComPortCombo.Selected()])
+	ur.OpenPort()
+	doneOperation("connected!")
+	startOperation("reading data...")
+	downloadData()
+}
+
+func disconnect() {
+	ur.ClosePort()
+	refreshView()
+	doneOperation("disconnected!")
+}
+
 func connectCallback(but *ui.Button) {
-	bp.StatProgBar.SetValue(-1)
 	if ur.Connected() {
-		ur.ClosePort()
-		refreshView()
+		startOperation("disconnecting...")
+		go disconnect()
 	} else {
 		if len(bp.PortList) > 0 {
-			ur.SetPort(bp.PortList[bp.ComPortCombo.Selected()])
-			ur.OpenPort()
-			ur.RequestAll()
-			refreshView()
+			startOperation("connecting...")
+			go connect()
 		}
 	}
-	bp.StatProgBar.SetValue(0)
+}
+
+func downloadData() {
+	suc := ur.RequestAll()
+	refreshView()
+	if suc {
+		doneOperation("done")
+		return
+	}
+	doneOperation("error, could not read from device")
 }
 
 func resetButtonCallback(but *ui.Button) {
-	ur.RequestAll()
-	refreshView()
+	startOperation("reading data...")
+	go downloadData()
 }
 
-func saveButtonCallback(but *ui.Button) {
+func saveData() {
 	if bp.NetworkIDHexChk.Checked() {
 		netID, err := strconv.ParseUint(bp.NetworkIDEntry.Text(), 16, 64)
 		if err != nil {
@@ -222,6 +289,7 @@ func saveButtonCallback(but *ui.Button) {
 		netID, err := strconv.Atoi(bp.NetworkIDEntry.Text())
 		if err != nil {
 			log.Print(err)
+			doneOperation("an error accured")
 			return
 		}
 		ur.SetNetworkID(netID)
@@ -233,6 +301,12 @@ func saveButtonCallback(but *ui.Button) {
 	}
 	ur.SetMode(init, bp.BleChk.Checked())
 	refreshView()
+	doneOperation("done")
+}
+
+func saveButtonCallback(but *ui.Button) {
+	startOperation("saving...")
+	go saveData()
 }
 
 func toggleNetworIDHexChk(chk *ui.Checkbox) {

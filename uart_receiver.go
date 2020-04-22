@@ -119,13 +119,12 @@ func (ur *UartReceiver) RequestAll() bool {
 	if !ur.RequestPos() {
 		ur.IsSetUp = false
 	}
-	return true
+	return ur.IsSetUp
 }
 
 // RequestSysInfo request and receive system info (network id)
 func (ur *UartReceiver) RequestSysInfo() bool {
 	if ur.SendStrAndWait("si\r") {
-		log.Print(ur.inMsg)
 		if strings.Contains(ur.inMsg, "addr=x") {
 			startI := strings.Index(ur.inMsg, "addr=x") + 7
 			add := ur.inMsg[startI : startI+16]
