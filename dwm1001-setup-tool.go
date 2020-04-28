@@ -155,82 +155,92 @@ func makeBasicControlsPage() ui.Control {
 
 func startOperation(msg string) {
 	enableAll(false)
-	bp.StatusLab.SetText(msg)
-	bp.StatProgBar.SetValue(-1)
+	ui.QueueMain(func() {
+		bp.StatusLab.SetText(msg)
+		bp.StatProgBar.SetValue(-1)
+	})
 }
 
 func doneOperation(msg string) {
-	bp.StatusLab.SetText(msg)
-	bp.StatProgBar.SetValue(0)
+	ui.QueueMain(func() {
+		bp.StatusLab.SetText(msg)
+		bp.StatProgBar.SetValue(0)
+	})
 	if ur.Connected() {
 		enableAll(true)
 	}
 }
 
 func enableAll(enable bool) {
-	if enable {
-		bp.NetworkIDEntry.Enable()
-		bp.NetworkIDHexChk.Enable()
-		bp.ModeRb.Enable()
-		bp.BleChk.Enable()
-		bp.PosXEntry.Enable()
-		bp.PosYEntry.Enable()
-		bp.PosZEntry.Enable()
-		bp.ResetBut.Enable()
-		bp.SaveBut.Enable()
-	} else {
-		bp.NetworkIDEntry.Disable()
-		bp.NetworkIDHexChk.Disable()
-		bp.ModeRb.Disable()
-		bp.BleChk.Disable()
-		bp.PosXEntry.Disable()
-		bp.PosYEntry.Disable()
-		bp.PosZEntry.Disable()
-		bp.ResetBut.Disable()
-		bp.SaveBut.Disable()
-	}
+	ui.QueueMain(func() {
+		if enable {
+			bp.NetworkIDEntry.Enable()
+			bp.NetworkIDHexChk.Enable()
+			bp.ModeRb.Enable()
+			bp.BleChk.Enable()
+			bp.PosXEntry.Enable()
+			bp.PosYEntry.Enable()
+			bp.PosZEntry.Enable()
+			bp.ResetBut.Enable()
+			bp.SaveBut.Enable()
+		} else {
+			bp.NetworkIDEntry.Disable()
+			bp.NetworkIDHexChk.Disable()
+			bp.ModeRb.Disable()
+			bp.BleChk.Disable()
+			bp.PosXEntry.Disable()
+			bp.PosYEntry.Disable()
+			bp.PosZEntry.Disable()
+			bp.ResetBut.Disable()
+			bp.SaveBut.Disable()
+		}
+	})
 }
 
 func refreshComPorts() {
 	bp.PortList = ur.PortList()
-	bp.ComPortSelectCont.Delete(0)
-	bp.ComPortCombo = ui.NewCombobox()
-	bp.ComPortSelectCont.Append(bp.ComPortCombo, false)
-	for _, p := range bp.PortList {
-		bp.ComPortCombo.Append(p)
-	}
-	if len(bp.PortList) > 0 {
-		bp.ComPortCombo.SetSelected(0)
-	}
+	ui.QueueMain(func() {
+		bp.ComPortSelectCont.Delete(0)
+		bp.ComPortCombo = ui.NewCombobox()
+		bp.ComPortSelectCont.Append(bp.ComPortCombo, false)
+		for _, p := range bp.PortList {
+			bp.ComPortCombo.Append(p)
+		}
+		if len(bp.PortList) > 0 {
+			bp.ComPortCombo.SetSelected(0)
+		}
+	})
 }
 
 func refreshView() {
-	if ur.Connected() {
-		bp.ConnectBut.SetText("Disconnect")
-		bp.ComPortCombo.Disable()
-		bp.RefreshPortsBut.Disable()
-	} else {
-		bp.ConnectBut.SetText("Connect")
-		bp.ComPortCombo.Enable()
-		bp.RefreshPortsBut.Enable()
-	}
-	bp.DeviceAddLab.SetText(ur.Data.Address)
-	if bp.NetworkIDHexChk.Checked() {
-		bp.NetworkIDEntry.SetText(fmt.Sprintf("%x", ur.Data.NetworkID))
-		bp.NetworkIDHexLab.SetText(fmt.Sprintf("dec: %d", ur.Data.NetworkID))
-	} else {
-		bp.NetworkIDEntry.SetText(strconv.Itoa(ur.Data.NetworkID))
-		bp.NetworkIDHexLab.SetText(fmt.Sprintf("hex: %x", ur.Data.NetworkID))
-	}
-	selectedIndex := 0
-	if ur.Data.Initiator {
-		selectedIndex = 1
-	}
-	bp.ModeRb.SetSelected(selectedIndex)
-	bp.BleChk.SetChecked(ur.Data.BleEnabled)
-	bp.PosXEntry.SetText(strconv.FormatFloat(ur.Data.X, 'f', 3, 64))
-	bp.PosYEntry.SetText(strconv.FormatFloat(ur.Data.Y, 'f', 3, 64))
-	bp.PosZEntry.SetText(strconv.FormatFloat(ur.Data.Z, 'f', 3, 64))
+	ui.QueueMain(func() {
+		if ur.Connected() {
+			bp.ConnectBut.SetText("Disconnect")
+			bp.ComPortCombo.Disable()
+			bp.RefreshPortsBut.Disable()
+		} else {
+			bp.ConnectBut.SetText("Connect")
+			bp.ComPortCombo.Enable()
+			bp.RefreshPortsBut.Enable()
+		}
+		bp.DeviceAddLab.SetText(ur.Data.Address)
+		if bp.NetworkIDHexChk.Checked() {
+			bp.NetworkIDEntry.SetText(fmt.Sprintf("%x", ur.Data.NetworkID))
+			bp.NetworkIDHexLab.SetText(fmt.Sprintf("dec: %d", ur.Data.NetworkID))
+		} else {
+			bp.NetworkIDEntry.SetText(strconv.Itoa(ur.Data.NetworkID))
+			bp.NetworkIDHexLab.SetText(fmt.Sprintf("hex: %x", ur.Data.NetworkID))
+		}
+		selectedIndex := 0
+		if ur.Data.Initiator {
+			selectedIndex = 1
+		}
+		bp.ModeRb.SetSelected(selectedIndex)
+		bp.BleChk.SetChecked(ur.Data.BleEnabled)
+		bp.PosXEntry.SetText(strconv.FormatFloat(ur.Data.X, 'f', 3, 64))
+		bp.PosYEntry.SetText(strconv.FormatFloat(ur.Data.Y, 'f', 3, 64))
+		bp.PosZEntry.SetText(strconv.FormatFloat(ur.Data.Z, 'f', 3, 64))
+	})
 }
 
 func refreshComPortsCallback(but *ui.Button) {

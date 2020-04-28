@@ -46,8 +46,12 @@ func (ur *UartReceiver) Connected() bool {
 func (ur *UartReceiver) OpenPort() bool {
 	ur.IsSetUp = false
 	c := &serial.Config{Name: ur.PortName, Baud: ur.Baud}
-	// var err error
+	// mode := &serial.Mode{
+	// 	BaudRate: ur.Baud,
+	// }
+
 	s, err := serial.OpenPort(c)
+	// p, err := serial.Open(ur.PortName, mode)
 	if err != nil {
 		log.Print("could not open com-port")
 		log.Fatal(err)
