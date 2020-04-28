@@ -42,3 +42,19 @@ The position should be manually measured as accurate as possible (centimeter acc
 | blink slow |            | connected anchor initiator                 |
 | blink fast |            | communication detected                     |
 | on         | on         | passive or off mode                        |
+
+
+## build
+
+### windows
+
+```
+go build -ldflags -H=windowsgui dwm1001-setup-tool.go uart_receiver.go
+```
+the flag hide the cmd window
+
+### Ubuntu
+
+```
+go build dwm1001-setup-tool.go uart_receiver.go
+```
