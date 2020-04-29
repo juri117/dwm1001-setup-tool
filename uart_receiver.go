@@ -114,8 +114,13 @@ func (ur *UartReceiver) receiverTask() {
 
 //RequestAll updates all info
 func (ur *UartReceiver) RequestAll() bool {
+	if !ur.SendStrAndWait("si\r") {
+		ur.IsSetUp = false
+	}
 	if !ur.IsSetUp {
-		ur.EnterShellMode()
+		if !ur.EnterShellMode() {
+			return false
+		}
 	}
 	if !ur.RequestSysInfo() {
 		ur.IsSetUp = false
@@ -190,11 +195,12 @@ func (ur *UartReceiver) RequestPos() bool {
 // set cmds
 
 // EnterShellMode changes from bin to shell mode
-func (ur *UartReceiver) EnterShellMode() {
+func (ur *UartReceiver) EnterShellMode() bool {
 	if ur.SendStrAndWait("\r\r") {
 		ur.IsSetUp = true
+		return true
 	}
-
+	return false
 }
 
 //SetNetworkID sets beacons network id
@@ -202,6 +208,7 @@ func (ur *UartReceiver) SetNetworkID(newID int) bool {
 	sendStr := fmt.Sprintf("nis %d\r", newID)
 	if !ur.SendStrAndWaitForStr(sendStr, "nis: ok") {
 		log.Print("failed to set networkID")
+		ur.IsSetUp = false
 		return false
 	}
 	ur.Data.NetworkID = newID
@@ -216,22 +223,26 @@ func (ur *UartReceiver) SetPosition(x string, y string, z string) bool {
 	xFl, err := strconv.ParseFloat(x, 64)
 	if err != nil {
 		log.Print("warning incalid value for x")
+		ur.IsSetUp = false
 		return false
 	}
 	yFl, err := strconv.ParseFloat(y, 64)
 	if err != nil {
 		log.Print("warning incalid value for y")
+		ur.IsSetUp = false
 		return false
 	}
 	zFl, err := strconv.ParseFloat(z, 64)
 	if err != nil {
 		log.Print("warning incalid value for z")
+		ur.IsSetUp = false
 		return false
 	}
 
 	sendStr := fmt.Sprintf("aps %d %d %d\r", int(xFl*1000), int(yFl*1000), int(zFl*1000))
 	if !ur.SendStrAndWaitForStr(sendStr, "aps: ok") {
 		log.Print("failed to set position")
+		ur.IsSetUp = false
 		return false
 	}
 	ur.Data.X = xFl
@@ -262,6 +273,7 @@ func (ur *UartReceiver) SetMode(initiator bool, enableBle bool) bool {
 		inr, bridge, enc, leds, ble, uwb, fwUpd)
 	if !ur.SendStrAndWaitForStr(sendStr, "acas: ok") {
 		log.Print("failed to set mode")
+		ur.IsSetUp = false
 		return false
 	}
 	if !ur.WaitForShellReadyNoReset() {

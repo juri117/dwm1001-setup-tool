@@ -149,12 +149,12 @@ func makeBasicControlsPage() ui.Control {
 
 	bp.StatusLab = ui.NewLabel("disconnected!")
 	vbox.Append(bp.StatusLab, false)
-	enableAll(false)
+	enableAll(false, false)
 	return vbox
 }
 
 func startOperation(msg string) {
-	enableAll(false)
+	enableAll(false, false)
 	ui.QueueMain(func() {
 		bp.StatusLab.SetText(msg)
 		bp.StatProgBar.SetValue(-1)
@@ -166,14 +166,17 @@ func doneOperation(msg string) {
 		bp.StatusLab.SetText(msg)
 		bp.StatProgBar.SetValue(0)
 	})
-	if ur.Connected() {
-		enableAll(true)
+	if ur.Connected() && ur.IsSetUp {
+		enableAll(true, true)
+	} else {
+		enableAll(false, true)
 	}
 }
 
-func enableAll(enable bool) {
+func enableAll(enable bool, buttons bool) {
 	ui.QueueMain(func() {
 		if enable {
+			bp.DeviceAddLab.Enable()
 			bp.NetworkIDEntry.Enable()
 			bp.NetworkIDHexChk.Enable()
 			bp.ModeRb.Enable()
@@ -181,9 +184,15 @@ func enableAll(enable bool) {
 			bp.PosXEntry.Enable()
 			bp.PosYEntry.Enable()
 			bp.PosZEntry.Enable()
-			bp.ResetBut.Enable()
-			bp.SaveBut.Enable()
+			if buttons {
+				bp.ResetBut.Enable()
+				bp.SaveBut.Enable()
+			} else {
+				bp.ResetBut.Disable()
+				bp.SaveBut.Disable()
+			}
 		} else {
+			bp.DeviceAddLab.Disable()
 			bp.NetworkIDEntry.Disable()
 			bp.NetworkIDHexChk.Disable()
 			bp.ModeRb.Disable()
@@ -191,8 +200,13 @@ func enableAll(enable bool) {
 			bp.PosXEntry.Disable()
 			bp.PosYEntry.Disable()
 			bp.PosZEntry.Disable()
-			bp.ResetBut.Disable()
-			bp.SaveBut.Disable()
+			if !buttons {
+				bp.ResetBut.Disable()
+				bp.SaveBut.Disable()
+			} else {
+				bp.ResetBut.Enable()
+				bp.SaveBut.Enable()
+			}
 		}
 	})
 }
@@ -294,22 +308,34 @@ func saveData() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		ur.SetNetworkID(int(netID))
+		if !ur.SetNetworkID(int(netID)) {
+			doneOperation("an error accured, could not set networkID")
+			return
+		}
 	} else {
 		netID, err := strconv.Atoi(bp.NetworkIDEntry.Text())
 		if err != nil {
 			log.Print(err)
-			doneOperation("an error accured")
+			doneOperation("an error accured, could not convert networkID")
 			return
 		}
-		ur.SetNetworkID(netID)
+		if !ur.SetNetworkID(netID) {
+			doneOperation("an error accured, could not set networkID")
+			return
+		}
 	}
-	ur.SetPosition(bp.PosXEntry.Text(), bp.PosYEntry.Text(), bp.PosZEntry.Text())
+	if !ur.SetPosition(bp.PosXEntry.Text(), bp.PosYEntry.Text(), bp.PosZEntry.Text()) {
+		doneOperation("an error accured, could not set positions")
+		return
+	}
 	init := false
 	if bp.ModeRb.Selected() == 1 {
 		init = true
 	}
-	ur.SetMode(init, bp.BleChk.Checked())
+	if !ur.SetMode(init, bp.BleChk.Checked()) {
+		doneOperation("an error accured, could not set mode")
+		return
+	}
 	refreshView()
 	doneOperation("done")
 }
