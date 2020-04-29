@@ -1,4 +1,4 @@
-# go beacon programmer
+# dwm1001 setup tool
 
 dwm1001 anchor setup tool using the uart interface.
 
